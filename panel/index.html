@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Minecraft Panel</title>
+<style>
+  :root {
+    --bg: #14161a; --panel: #1d2026; --line: #2c3038; --text: #e6e8eb; --muted: #9aa1ab;
+    --accent: #4caf50; --accent-text: #fff; --danger: #e5534b; --warn: #d4a72c; --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 12px 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  h1 { font-size: 16px; margin: 0; }
+  .status { display: flex; align-items: center; gap: 8px; color: var(--muted); min-width: 0; flex: 1; }
+  .status span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--danger); flex: none; }
+  .dot.on { background: var(--accent); }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  button, .btn { background: #2b3038; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 7px 12px; font: inherit; cursor: pointer; text-decoration: none; white-space: nowrap; }
+  button:hover, .btn:hover { border-color: #47505c; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+  button.danger { color: var(--danger); }
+  button:disabled { opacity: .5; cursor: default; }
+  nav { display: flex; gap: 4px; padding: 0 16px; background: var(--panel); border-bottom: 1px solid var(--line); overflow-x: auto; }
+  nav button { background: none; border: none; border-bottom: 2px solid transparent; border-radius: 0; padding: 10px 12px; color: var(--muted); }
+  nav button.active { color: var(--text); border-bottom-color: var(--accent); }
+  main { padding: 16px; max-width: 1200px; margin: 0 auto; }
+  .hidden { display: none !important; }
+  #log { background: #0d0f12; border: 1px solid var(--line); border-radius: 8px; padding: 10px; height: calc(100vh - 260px); min-height: 280px; overflow: auto; margin: 0; font: 12.5px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word; }
+  .log-warn { color: var(--warn); } .log-err { color: var(--danger); }
+  .cmdbar { display: flex; gap: 8px; margin-top: 10px; }
+  input[type=text] { flex: 1; min-width: 0; background: #0d0f12; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font: 13px var(--mono); }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .crumbs { flex: 1; min-width: 200px; font-family: var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+  .crumbs a { color: var(--text); cursor: pointer; text-decoration: none; }
+  .crumbs a:hover { text-decoration: underline; }
+  .drop { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .drop.over { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
+  table { width: 100%; border-collapse: collapse; }
+  td, th { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: left; }
+  th { color: var(--muted); font-weight: 500; background: var(--panel); }
+  tr:last-child td { border-bottom: none; }
+  td.name { word-break: break-all; }
+  td.name a { color: var(--text); cursor: pointer; text-decoration: none; }
+  td.name a:hover { text-decoration: underline; }
+  td.num { color: var(--muted); white-space: nowrap; }
+  td.ops { text-align: right; white-space: nowrap; }
+  td.ops button { padding: 3px 8px; font-size: 12px; }
+  .empty { padding: 24px; text-align: center; color: var(--muted); }
+  .hint { color: var(--muted); font-size: 13px; margin-top: 10px; }
+  dialog { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 0; width: min(1000px, calc(100vw - 32px)); }
+  dialog::backdrop { background: rgba(0,0,0,.6); }
+  .dlg-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); font-family: var(--mono); overflow-wrap: anywhere; }
+  .dlg-head b { flex: 1; }
+  #editor { display: block; width: 100%; height: min(70vh, 700px); background: #0d0f12; color: var(--text); border: none; padding: 12px; font: 13px/1.5 var(--mono); resize: vertical; tab-size: 4; }
+  .dlg-foot { display: flex; gap: 8px; justify-content: flex-end; padding: 10px 14px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+  #toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: #2b3038; border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; max-width: calc(100vw - 32px); opacity: 0; transition: opacity .2s; pointer-events: none; white-space: pre-wrap; }
+  #toast.show { opacity: 1; }
+  #toast.err { border-color: var(--danger); }
+  @media (max-width: 640px) { td.num.mtime, th.mtime { display: none; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Minecraft</h1>
+  <div class="status"><span class="dot" id="dot"></span><span id="status">Checking…</span></div>
+  <div class="actions">
+    <button id="backupBtn">Backup</button>
+    <button id="restartBtn" class="primary">Restart</button>
+  </div>
+</header>
+<nav>
+  <button data-tab="console" class="active">Console</button>
+  <button data-tab="files" data-path="">Files</button>
+  <button data-tab="files" data-path="data/mods">Mods</button>
+  <button data-tab="files" data-path="data/plugins">Plugins</button>
+  <button data-tab="settings">Settings</button>
+</nav>
+<main>
+  <section id="console">
+    <pre id="log">Loading log…</pre>
+    <form class="cmdbar" id="cmdForm">
+      <input type="text" id="cmd" placeholder="Server command, e.g. op YourName / say hi / whitelist add Steve" autocomplete="off">
+      <button class="primary">Send</button>
+    </form>
+  </section>
+  <section id="files" class="hidden">
+    <div class="toolbar">
+      <div class="crumbs" id="crumbs"></div>
+      <button id="mkdirBtn">New folder</button>
+      <label class="btn">Upload<input type="file" id="upload" multiple hidden></label>
+    </div>
+    <div class="drop" id="drop"><table><thead><tr><th>Name</th><th>Size</th><th class="mtime">Modified</th><th></th></tr></thead><tbody id="rows"></tbody></table></div>
+    <p class="hint">Drag files here to upload. Mods and plugins take effect after <b>Restart</b>. To turn a mod off without deleting it, rename it to end in <code>.disabled</code>.</p>
+  </section>
+</main>
+
+<dialog id="dlg">
+  <div class="dlg-head"><b id="dlgName"></b><button id="dlgClose">Close</button></div>
+  <textarea id="editor" spellcheck="false"></textarea>
+  <div class="dlg-foot">
+    <button id="saveBtn">Save</button>
+    <button id="saveRestartBtn" class="primary">Save &amp; restart</button>
+  </div>
+</dialog>
+<div id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let cwd = "", editing = null, logOffset = -1;
+
+function toast(msg, err) {
+  const t = $("toast");
+  t.textContent = msg; t.className = "show" + (err ? " err" : "");
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => t.className = "", err ? 6000 : 3000);
+}
+
+async function api(method, path, body, raw) {
+  const opts = { method, headers: {} };
+  if (method !== "GET") opts.headers["X-Requested-By"] = "panel";
+  if (raw !== undefined) opts.body = raw;
+  else if (body !== undefined) { opts.body = JSON.stringify(body); opts.headers["Content-Type"] = "application/json"; }
+  const res = await fetch(path, opts);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+const q = (p) => encodeURIComponent(p);
+const join = (dir, name) => dir ? dir + "/" + name : name;
+
+// ── status ──
+async function refreshStatus() {
+  try {
+    const s = await api("GET", "/api/status");
+    $("dot").className = "dot" + (s.online ? " on" : "");
+    const kind = s.type === "ARCLIGHT" ? "Mods + plugins" : s.type === "MOHIST" ? "Mods + plugins (Mohist)" : s.type;
+    $("status").textContent = (s.online ? "Online" : "Offline") + " · " + kind + " " + s.version + " · " + s.players.trim();
+  } catch (e) { $("status").textContent = "Panel unreachable"; $("dot").className = "dot"; }
+}
+
+// ── console ──
+function appendLog(text) {
+  const log = $("log");
+  const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+  const frag = document.createDocumentFragment();
+  for (const line of text.split(/(?<=\n)/)) {
+    const span = document.createElement("span");
+    if (/\b(ERROR|FATAL|SEVERE)\b|Exception/.test(line)) span.className = "log-err";
+    else if (/\bWARN\b/.test(line)) span.className = "log-warn";
+    span.textContent = line;
+    frag.appendChild(span);
+  }
+  log.appendChild(frag);
+  while (log.childNodes.length > 5000) log.removeChild(log.firstChild);
+  if (atBottom) log.scrollTop = log.scrollHeight;
+}
+async function pollLog() {
+  try {
+    const r = await api("GET", "/api/log?offset=" + logOffset);
+    if (logOffset === -1) $("log").textContent = r.text ? "" : "No log yet. The server writes one once it starts (the first start downloads Minecraft and can take a few minutes).\n";
+    if (r.reset) appendLog("\n──── server restarted ────\n");
+    if (r.text) appendLog(r.text);
+    logOffset = r.offset;
+  } catch (e) {}
+  setTimeout(pollLog, 1500);
+}
+const history = []; let histPos = 0;
+$("cmdForm").onsubmit = async (e) => {
+  e.preventDefault();
+  const cmd = $("cmd").value.trim();
+  if (!cmd) return;
+  history.push(cmd); histPos = history.length; $("cmd").value = "";
+  appendLog("> " + cmd + "\n");
+  try { const r = await api("POST", "/api/cmd", { cmd }); if (r.output) appendLog(r.output.replace(/\n?$/, "\n")); }
+  catch (err) { appendLog("! " + err.message + "\n"); }
+  $("log").scrollTop = $("log").scrollHeight;
+};
+$("cmd").onkeydown = (e) => {
+  if (e.key === "ArrowUp" && histPos > 0) { $("cmd").value = history[--histPos]; e.preventDefault(); }
+  if (e.key === "ArrowDown") { histPos = Math.min(history.length, histPos + 1); $("cmd").value = history[histPos] || ""; e.preventDefault(); }
+};
+
+// ── actions ──
+async function restart() {
+  try { const r = await api("POST", "/api/restart"); toast(r.output); setTimeout(refreshStatus, 3000); }
+  catch (e) { toast(e.message, true); }
+}
+$("restartBtn").onclick = () => { if (confirm("Restart the server? Players will be disconnected for a minute or two.")) restart(); };
+$("backupBtn").onclick = async () => {
+  try { await api("POST", "/api/backup"); } catch (e) { return toast(e.message, true); }
+  $("backupBtn").disabled = true; $("backupBtn").textContent = "Backing up…";
+  const check = async () => {
+    const s = await api("GET", "/api/backup").catch(() => ({ running: true }));
+    if (s.running) return setTimeout(check, 2000);
+    $("backupBtn").disabled = false; $("backupBtn").textContent = "Backup";
+    if (s.error) toast("Backup failed: " + s.error, true); else toast("Saved " + s.last + " (find it in Files → backups)");
+  };
+  setTimeout(check, 1500);
+};
+
+// ── files ──
+const fmtSize = (n) => n < 1024 ? n + " B" : n < 1048576 ? (n / 1024).toFixed(1) + " KB" : n < 1073741824 ? (n / 1048576).toFixed(1) + " MB" : (n / 1073741824).toFixed(2) + " GB";
+async function openDir(path) {
+  let r;
+  try { r = await api("GET", "/api/files?path=" + q(path)); }
+  catch (e) {
+    if (path.startsWith("data/") && /Not found/.test(e.message)) return toast("That folder appears after the server's first start. Use the right server type: mods need a mod loader, plugins need Paper or a hybrid.", true);
+    return toast(e.message, true);
+  }
+  cwd = r.path;
+  const crumbs = $("crumbs"); crumbs.textContent = "";
+  const parts = cwd ? cwd.split("/") : [];
+  const add = (label, p) => { const a = document.createElement("a"); a.textContent = label; a.onclick = () => openDir(p); crumbs.appendChild(a); };
+  add("server", "");
+  parts.forEach((part, i) => { crumbs.append(" / "); add(part, parts.slice(0, i + 1).join("/")); });
+  const rows = $("rows"); rows.textContent = "";
+  if (!r.entries.length) rows.innerHTML = '<tr><td colspan="4" class="empty">Empty. Drag files here or click Upload.</td></tr>';
+  for (const e of r.entries) {
+    const tr = document.createElement("tr");
+    const p = join(cwd, e.name);
+    const name = document.createElement("td"); name.className = "name";
+    const a = document.createElement("a"); a.textContent = (e.dir ? "📁 " : "") + e.name;
+    a.onclick = () => e.dir ? openDir(p) : openFile(p);
+    name.appendChild(a);
+    const size = document.createElement("td"); size.className = "num"; size.textContent = e.dir ? "" : fmtSize(e.size);
+    const mt = document.createElement("td"); mt.className = "num mtime"; mt.textContent = new Date(e.mtime * 1000).toLocaleString();
+    const ops = document.createElement("td"); ops.className = "ops";
+    const btn = (label, fn, cls) => { const b = document.createElement("button"); b.textContent = label; b.onclick = fn; if (cls) b.className = cls; ops.append(b, " "); };
+    if (!e.dir) btn("Download", () => location.href = "/api/download?path=" + q(p));
+    btn("Rename", () => renameEntry(p, e.name));
+    btn("Delete", () => deleteEntry(p, e.name, e.dir), "danger");
+    tr.append(name, size, mt, ops);
+    rows.appendChild(tr);
+  }
+}
+async function openFile(path) {
+  let r;
+  try { r = await api("GET", "/api/file?path=" + q(path)); }
+  catch (e) {
+    if (/Download/.test(e.message)) { if (confirm(e.message + "\n\nDownload " + path + "?")) location.href = "/api/download?path=" + q(path); return; }
+    return toast(e.message, true);
+  }
+  editing = r.path;
+  $("dlgName").textContent = r.path;
+  $("editor").value = r.text;
+  $("dlg").showModal();
+  $("editor").focus();
+}
+async function save(thenRestart) {
+  try {
+    await api("PUT", "/api/file?path=" + q(editing), undefined, $("editor").value);
+    $("dlg").close();
+    toast("Saved " + editing);
+    if (thenRestart) restart(); else if (!$("files").classList.contains("hidden")) openDir(cwd);
+  } catch (e) { toast(e.message, true); }
+}
+$("saveBtn").onclick = () => save(false);
+$("saveRestartBtn").onclick = () => save(true);
+$("dlgClose").onclick = () => $("dlg").close();
+$("editor").onkeydown = (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "s") { e.preventDefault(); save(false); }
+  if (e.key === "Tab") { e.preventDefault(); document.execCommand("insertText", false, "  "); }
+};
+async function renameEntry(path, name) {
+  const to = prompt("New name:", name);
+  if (!to || to === name) return;
+  try { await api("POST", "/api/rename", { path, to: join(cwd, to) }); openDir(cwd); } catch (e) { toast(e.message, true); }
+}
+async function deleteEntry(path, name, isDir) {
+  if (!confirm("Delete " + (isDir ? "the folder " + name + " and everything in it" : name) + "? This can't be undone.")) return;
+  try { await api("POST", "/api/delete", { path }); openDir(cwd); } catch (e) { toast(e.message, true); }
+}
+$("mkdirBtn").onclick = async () => {
+  const name = prompt("Folder name:");
+  if (!name) return;
+  try { await api("POST", "/api/mkdir", { path: join(cwd, name) }); openDir(cwd); } catch (e) { toast(e.message, true); }
+};
+async function uploadFiles(files) {
+  let done = 0;
+  for (const f of files) {
+    toast("Uploading " + f.name + "… (" + (done + 1) + "/" + files.length + ")");
+    try { await api("PUT", "/api/file?path=" + q(join(cwd, f.name)), undefined, f); done++; }
+    catch (e) { toast(f.name + ": " + e.message, true); }
+  }
+  if (done) toast("Uploaded " + done + " file" + (done > 1 ? "s" : "") + ". Restart to load new mods/plugins.");
+  openDir(cwd);
+}
+$("upload").onchange = (e) => { uploadFiles([...e.target.files]); e.target.value = ""; };
+const drop = $("drop");
+drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove("over"); uploadFiles([...e.dataTransfer.files]); };
+
+// ── tabs ──
+document.querySelectorAll("nav button").forEach((b) => b.onclick = () => {
+  if (b.dataset.tab === "settings") return openFile("server.env");
+  document.querySelectorAll("nav button").forEach((x) => x.classList.toggle("active", x === b));
+  $("console").classList.toggle("hidden", b.dataset.tab !== "console");
+  $("files").classList.toggle("hidden", b.dataset.tab !== "files");
+  if (b.dataset.tab === "files") openDir(b.dataset.path);
+});
+
+refreshStatus(); setInterval(refreshStatus, 10000);
+pollLog();
+</script>
+</body>
+</html>

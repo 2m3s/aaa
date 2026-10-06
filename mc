@@ -13,6 +13,7 @@ usage() {
   cat <<'EOF'
 Usage: ./mc <command>
 
+  web                   Show the web panel address and login
   start                 Start the server (in the background)
   stop                  Save the world and stop the server
   restart               Restart (use after editing server.env)
@@ -29,18 +30,44 @@ Usage: ./mc <command>
 EOF
 }
 
-set_env() { # set_env KEY VALUE
-  if grep -q "^$1=" server.env; then
-    sed -i.bak "s|^$1=.*|$1=$2|" server.env && rm -f server.env.bak
+set_env() { # set_env KEY VALUE [FILE]
+  local file=${3:-server.env}
+  touch "$file"
+  if grep -q "^$1=" "$file"; then
+    sed -i.bak "s|^$1=.*|$1=$2|" "$file" && rm -f "$file.bak"
   else
-    echo "$1=$2" >> server.env
+    echo "$1=$2" >> "$file"
   fi
+}
+
+get_env() { grep "^$1=" server.env 2>/dev/null | head -1 | cut -d= -f2- || true; }
+
+# server.env holds your settings and isn't tracked by git, so updates never touch it.
+ensure_settings() {
+  [ -f server.env ] || cp server.env.example server.env
+  grep -q '^PANEL_USER=' server.env || set_env PANEL_USER admin
+  if [ -z "$(get_env PANEL_PASSWORD)" ]; then
+    set_env PANEL_PASSWORD "$(head -c 18 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 16)"
+  fi
+}
+
+show_web() {
+  local ip port
+  ip=$(curl -fsS -m 5 https://api.ipify.org 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}')
+  port=$(grep '^PANEL_PORT=' .env 2>/dev/null | cut -d= -f2); port=${port:-8080}
+  echo "Web panel:  http://${ip:-SERVER-IP}:$port"
+  echo "  user:     $(get_env PANEL_USER)"
+  echo "  password: $(get_env PANEL_PASSWORD)"
+  echo "(Open TCP port $port in your firewall if it doesn't load, e.g. sudo ufw allow $port/tcp)"
 }
 
 rcon() { docker exec -i mc rcon-cli "$@"; }
 
+ensure_settings
+
 case "${1:-}" in
-  start)   compose up -d; echo "Server starting. Watch it with: ./mc logs" ;;
+  web)     compose up -d; show_web ;;
+  start)   compose up -d; echo "Server starting. Watch it with: ./mc logs"; show_web ;;
   stop)    compose stop ;;
   restart) compose up -d --force-recreate ;;
   status)  compose ps ;;
@@ -50,20 +77,21 @@ case "${1:-}" in
   mode)
     type=$(echo "${2:-}" | tr '[:lower:]' '[:upper:]')
     case "$type" in
-      HYBRID|ARCLIGHT) set_env TYPE ARCLIGHT; set_env ARCLIGHT_TYPE NEOFORGE; set_env VERSION 1.21.1
+      HYBRID|ARCLIGHT) set_env TYPE ARCLIGHT; set_env ARCLIGHT_TYPE NEOFORGE; set_env VERSION 1.21.1; set_env JAVA_TAG java21 .env
         echo "Hybrid (Arclight + NeoForge, Minecraft 1.21.1): mods AND plugins."
         echo "NeoForge 1.21.1 mods -> data/mods    Paper/Spigot 1.21.1 plugins -> data/plugins" ;;
-      MOHIST) set_env TYPE MOHIST; set_env VERSION 1.20.1
+      MOHIST) set_env TYPE MOHIST; set_env VERSION 1.20.1; set_env JAVA_TAG java17 .env
         echo "Hybrid (Mohist + Forge, Minecraft 1.20.1): mods AND plugins."
         echo "Forge 1.20.1 mods -> data/mods    Paper/Spigot 1.20.1 plugins -> data/plugins" ;;
-      PAPER) set_env TYPE PAPER; set_env VERSION LATEST
+      PAPER) set_env TYPE PAPER; set_env VERSION LATEST; set_env JAVA_TAG latest .env
         echo "Plugins only. Plugins -> data/plugins (or MODRINTH_PROJECTS)." ;;
-      FABRIC|NEOFORGE|FORGE) set_env TYPE "$type"; set_env VERSION LATEST
+      FABRIC|NEOFORGE|FORGE) set_env TYPE "$type"; set_env VERSION LATEST; set_env JAVA_TAG latest .env
         echo "Mods only. $type mods -> data/mods (or MODRINTH_PROJECTS)." ;;
-      VANILLA) set_env TYPE VANILLA; set_env VERSION LATEST; echo "Vanilla, no mods or plugins." ;;
+      VANILLA) set_env TYPE VANILLA; set_env VERSION LATEST; set_env JAVA_TAG latest .env; echo "Vanilla, no mods or plugins." ;;
       *) echo "Pick one of: hybrid mohist paper fabric neoforge forge vanilla"; exit 1 ;;
     esac
-    echo "VERSION is now $(grep '^VERSION=' server.env | cut -d= -f2); pin it in server.env to match your mods/plugins."
+    echo "VERSION is now $(get_env VERSION); pin it in server.env to match your mods/plugins."
+    echo "If you pin an older VERSION, set JAVA_TAG in .env to match (java21 for 1.20.5-1.21.x, java17 for 1.18-1.20.4)."
     echo "Mods built for a different loader or version won't load, so clear out data/mods if you switched."
     echo "Back up first if this world matters: ./mc backup"
     echo "Apply with: ./mc restart"
@@ -81,7 +109,13 @@ case "${1:-}" in
     echo "Backup written to $file"
     ;;
   update)
-    git pull --ff-only
+    # Older installs tracked server.env in git; keep your copy safe across the pull.
+    cp server.env server.env.keep
+    git checkout -- server.env 2>/dev/null || true
+    git pull --ff-only || { mv server.env.keep server.env; exit 1; }
+    mv server.env.keep server.env
+    exec ./mc update-finish ;;
+  update-finish)
     compose pull
     compose up -d --force-recreate
     ;;

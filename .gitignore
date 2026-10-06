@@ -1,3 +1,6 @@
+# Your settings (made from server.env.example) and the Java version picked by ./mc mode
+server.env
+.env
 # World, mods, plugins, logs — everything the server generates
 data/
 backups/
