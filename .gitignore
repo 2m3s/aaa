@@ -1,0 +1,3 @@
+# World, mods, plugins, logs — everything the server generates
+data/
+backups/
