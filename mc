@@ -23,7 +23,8 @@ Usage: ./mc <command>
   cmd <command...>      Run one server command, e.g. ./mc cmd op Steve
   mode <type>           Switch server type:
                           hybrid (mods + plugins, default) | mohist (mods + plugins, 1.20.1)
-                          paper (plugins) | fabric | neoforge | forge (mods) | vanilla
+                          paper (plugins) | fabric | neoforge | forge (mods, 1.21.1 or
+                          ./mc mode neoforge <version>) | vanilla
   memory <size>         Set Java heap, e.g. ./mc memory 4G
   backup                Save a .tar.gz of the server into backups/
   update                Pull the latest repo + server image and restart
@@ -63,6 +64,18 @@ show_web() {
 
 rcon() { docker exec -i mc rcon-cli "$@"; }
 
+# Java image tag that a Minecraft version needs.
+java_for() {
+  case "$1" in
+    LATEST|latest) echo latest ;;
+    1.20.[5-9]*|1.21*) echo java21 ;;
+    1.18*|1.19*|1.20*) echo java17 ;;
+    1.17*) echo java16 ;;
+    1.*) echo java8 ;;
+    *) echo latest ;;
+  esac
+}
+
 # Under sudo, run git as the folder's owner: git refuses to work as root in a
 # repo owned by someone else ("dubious ownership").
 git_() {
@@ -92,8 +105,12 @@ case "${1:-}" in
         echo "Forge 1.20.1 mods -> data/mods    Paper/Spigot 1.20.1 plugins -> data/plugins" ;;
       PAPER) set_env TYPE PAPER; set_env VERSION LATEST; set_env JAVA_TAG latest .env
         echo "Plugins only. Plugins -> data/plugins (or MODRINTH_PROJECTS)." ;;
-      FABRIC|NEOFORGE|FORGE) set_env TYPE "$type"; set_env VERSION LATEST; set_env JAVA_TAG latest .env
-        echo "Mods only. $type mods -> data/mods (or MODRINTH_PROJECTS)." ;;
+      FABRIC|NEOFORGE|FORGE)
+        # Mods are built for one Minecraft version, so keep 1.21.1 unless told otherwise.
+        ver=${3:-1.21.1}
+        set_env TYPE "$type"; set_env VERSION "$ver"; set_env JAVA_TAG "$(java_for "$ver")" .env
+        echo "Mods only, Minecraft $ver with the newest $type for it. $type mods -> data/mods."
+        echo "(Another Minecraft version: ./mc mode ${2,,} 1.20.1)" ;;
       VANILLA) set_env TYPE VANILLA; set_env VERSION LATEST; set_env JAVA_TAG latest .env; echo "Vanilla, no mods or plugins." ;;
       *) echo "Pick one of: hybrid mohist paper fabric neoforge forge vanilla"; exit 1 ;;
     esac

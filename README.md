@@ -75,7 +75,7 @@ Settings like the MOTD, max players, difficulty, whitelist and ops live in **`se
 | `hybrid` (default) | NeoForge mods **+** plugins (Arclight) | 1.21.1 |
 | `mohist` | Forge mods **+** plugins (Mohist). Try this if Arclight has issues, or if your modpack is Forge 1.20.1 | 1.20.1 |
 | `paper` | Plugins only, the fastest and most stable | latest |
-| `fabric` / `neoforge` / `forge` | Mods only | latest |
+| `fabric` / `neoforge` / `forge` | Mods only, with the newest loader for that version. Use `neoforge` if your mods need a newer NeoForge than Arclight includes | 1.21.1 (or `./mc mode neoforge 1.20.1`) |
 | `vanilla` | Neither | latest |
 
 Switch over SSH with `./mc mode …`, not by editing `TYPE` in the panel: the command also picks the right Minecraft and Java versions. Make a backup before switching on a world you care about, and empty `data/mods` if the new mode uses a different loader or version.
