@@ -63,6 +63,13 @@ show_web() {
 
 rcon() { docker exec -i mc rcon-cli "$@"; }
 
+# Under sudo, run git as the folder's owner: git refuses to work as root in a
+# repo owned by someone else ("dubious ownership").
+git_() {
+  local owner; owner=$(ls -nd . | awk '{print $3}')
+  if [ "$(id -u)" = 0 ] && [ "$owner" != 0 ]; then sudo -u "#$owner" git "$@"; else git "$@"; fi
+}
+
 ensure_settings
 
 case "${1:-}" in
@@ -111,8 +118,8 @@ case "${1:-}" in
   update)
     # Older installs tracked server.env in git; keep your copy safe across the pull.
     cp server.env server.env.keep
-    git checkout -- server.env 2>/dev/null || true
-    git pull --ff-only || { mv server.env.keep server.env; exit 1; }
+    git_ checkout -- server.env 2>/dev/null || true
+    git_ pull --ff-only || { mv server.env.keep server.env; exit 1; }
     mv server.env.keep server.env
     exec ./mc update-finish ;;
   update-finish)

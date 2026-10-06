@@ -152,48 +152,107 @@ class RconError(Exception):
     pass
 
 
-def rcon(command, timeout=5):
-    password = read_env().get("RCON_PASSWORD", "")
-    try:
-        sock = socket.create_connection((RCON_HOST, RCON_PORT), timeout=timeout)
-    except OSError:
-        raise RconError("Server is offline or still starting.")
-    with sock:
-        def send(req_id, kind, body):
-            payload = struct.pack("<ii", req_id, kind) + body.encode("utf-8") + b"\x00\x00"
-            sock.sendall(struct.pack("<i", len(payload)) + payload)
+class Rcon:
+    """One RCON connection, kept open and shared. Minecraft logs every new RCON
+    connection, so reconnecting for each status check would flood the console."""
 
-        def recv_exact(n):
-            buf = b""
-            while len(buf) < n:
-                chunk = sock.recv(n - len(buf))
-                if not chunk:
-                    raise RconError("Server closed the connection.")
-                buf += chunk
-            return buf
+    MAX_CHUNK = 4096  # Minecraft splits longer replies into packets of this many bytes
 
-        def recv():
-            (length,) = struct.unpack("<i", recv_exact(4))
-            data = recv_exact(length)
-            req_id, kind = struct.unpack("<ii", data[:8])
-            return req_id, kind, data[8:-2].decode("utf-8", "replace")
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.sock = None
+        self.password = None
+        self.next_id = 0
 
-        send(1, 3, password)
-        req_id, _, _ = recv()
-        if req_id == -1:
+    def close(self):
+        if self.sock:
+            try:
+                self.sock.close()
+            except OSError:
+                pass
+        self.sock = None
+
+    def send(self, kind, body):
+        self.next_id = self.next_id % 2_000_000_000 + 1
+        payload = struct.pack("<ii", self.next_id, kind) + body.encode("utf-8") + b"\x00\x00"
+        self.sock.sendall(struct.pack("<i", len(payload)) + payload)
+        return self.next_id
+
+    def recv_exact(self, n):
+        buf = b""
+        while len(buf) < n:
+            chunk = self.sock.recv(n - len(buf))
+            if not chunk:
+                raise ConnectionError("Server closed the connection")
+            buf += chunk
+        return buf
+
+    def recv(self):
+        (length,) = struct.unpack("<i", self.recv_exact(4))
+        data = self.recv_exact(length)
+        req_id, _ = struct.unpack("<ii", data[:8])
+        return req_id, data[8:-2]
+
+    def connect(self, password, timeout):
+        self.sock = socket.create_connection((RCON_HOST, RCON_PORT), timeout=timeout)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        self.send(3, password)
+        if self.recv()[0] == -1:
+            self.close()
             raise RconError("Wrong RCON_PASSWORD. If you just changed it, restart the server.")
-        send(2, 2, command)
+        self.password = password
+
+    def run(self, command, timeout):
+        self.sock.settimeout(timeout)
+        req_id = self.send(2, command)
         if command.strip().lower() == "stop":
+            self.close()  # the server shuts down; reconnect after it's back
             return "Stopping..."
-        _, _, body = recv()
-        # Long replies arrive split over several packets.
-        sock.settimeout(0.3)
+        body = b""
+        while True:
+            try:
+                got_id, chunk = self.recv()
+            except socket.timeout:
+                if not body:
+                    raise
+                self.close()  # don't reuse a connection that may hold half a packet
+                break
+            if got_id != req_id:
+                continue  # leftover reply to an earlier command
+            body += chunk
+            if len(chunk) < self.MAX_CHUNK:
+                break
+            self.sock.settimeout(0.5)  # a full-size packet may be followed by more
+        return COLOR_CODES.sub("", body.decode("utf-8", "replace"))
+
+    def command(self, command, timeout=5):
+        password = read_env().get("RCON_PASSWORD", "")
+        if not self.lock.acquire(timeout=timeout):
+            raise RconError("Server is busy, try again in a moment.")
         try:
-            while True:
-                body += recv()[2]
-        except (socket.timeout, RconError):
-            pass
-        return COLOR_CODES.sub("", body)
+            for attempt in (1, 2):
+                try:
+                    if self.sock is None or self.password != password:
+                        self.close()
+                        self.connect(password, timeout)
+                    return self.run(command, timeout)
+                except socket.timeout:
+                    self.close()
+                    raise RconError("The server didn't answer in time.")
+                except (OSError, struct.error):
+                    # Stale connection (e.g. the server restarted): reconnect once.
+                    self.close()
+                    if attempt == 2:
+                        raise RconError("Server is offline or still starting.")
+        finally:
+            self.lock.release()
+
+
+_rcon = Rcon()
+
+
+def rcon(command, timeout=5):
+    return _rcon.command(command, timeout)
 
 
 # ── backups ───────────────────────────────────────────────────
