@@ -40,6 +40,14 @@ Once the server has started for the first time, it creates the `data/` folder.
 
 Download them from [Modrinth](https://modrinth.com/) or [CurseForge](https://www.curseforge.com/minecraft), drag the `.jar` files into the **Mods** or **Plugins** tab of the web panel, then click **Restart**.
 
+**Moving mods over from a CurseForge instance?** Run this in PowerShell on your PC. It copies only the mods that belong on the server into `Downloads\server-mods`, leaving out client-only ones like shaders, minimaps and FPS mods. It checks each mod on Modrinth, and writes a report to `Downloads\server-mods-report.txt`:
+
+```powershell
+irm https://raw.githubusercontent.com/2m3s/aaa/main/tools/sort-mods.ps1 | iex
+```
+
+It reads `curseforge\minecraft\Instances\server` by default and asks for the folder if that doesn't exist.
+
 Some mods are client-side as well (new blocks, items, mobs). Players then need the same mods installed in a **NeoForge 1.21.1** client. Plugins and server-only mods (performance, map pre-generation, etc.) don't need anything on the client.
 
 ## Managing the server (Linux/Mac)
