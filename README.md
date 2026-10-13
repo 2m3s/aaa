@@ -94,3 +94,7 @@ TCP **25565** is for players and **8080** is for the web panel.
 
 - **VPS:** `sudo ufw allow 25565/tcp && sudo ufw allow 8080/tcp` (the installer does this if ufw is on), plus your provider's firewall panel if it has one.
 - **Home PC:** forward TCP 25565 on your router to this PC, or use a tunnel like [playit.gg](https://playit.gg). You only need 8080 on your home network.
+
+## Also in this repo
+
+[`ai-app/`](ai-app/) holds **Pocket AI**, a free, lightweight AI assistant you install on an iPhone home screen. It has nothing to do with the Minecraft server. See [ai-app/README.md](ai-app/README.md).

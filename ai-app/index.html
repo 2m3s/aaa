@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Pocket AI</title>
+  <meta name="description" content="A lightweight AI assistant that runs as a home-screen app.">
+  <meta name="theme-color" content="#f6f6f4" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#151517" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Pocket AI">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <button id="clearBtn" class="icon-btn" aria-label="New chat" title="New chat">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <h1>Pocket AI</h1>
+    <button id="settingsBtn" class="icon-btn" aria-label="Settings" title="Settings">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+  </header>
+
+  <nav id="modes" class="modes" aria-label="Mode"></nav>
+
+  <main id="chat" class="chat" aria-live="polite">
+    <div id="empty" class="empty">
+      <p class="empty-title">Ask anything.</p>
+      <p class="empty-sub">Pick a mode above, or just chat. Tap ⚙︎ to add a free API key first.</p>
+    </div>
+  </main>
+
+  <form id="composer" class="composer">
+    <textarea id="input" rows="1" placeholder="Message" autocomplete="off" enterkeyhint="send"></textarea>
+    <button id="sendBtn" class="send" type="submit" aria-label="Send">
+      <svg class="i-send" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+      <svg class="i-stop" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1.5"/></svg>
+    </button>
+  </form>
+
+  <dialog id="settings">
+    <form method="dialog" class="sheet">
+      <h2>Settings</h2>
+
+      <label>Provider
+        <select id="provider"></select>
+      </label>
+      <p id="providerNote" class="note"></p>
+
+      <label>API key
+        <input id="apiKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste your key">
+      </label>
+
+      <label>Model
+        <input id="model" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+      </label>
+      <p class="note">Leave as is unless the provider renamed it. The default is reset if you clear this box.</p>
+
+      <p class="note">Your key and chats stay on this phone (in the browser's storage). They're only sent to the provider you pick.</p>
+
+      <div class="sheet-actions">
+        <button value="cancel" class="ghost">Cancel</button>
+        <button id="saveSettings" value="save" class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
